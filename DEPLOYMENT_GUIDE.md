@@ -1,91 +1,116 @@
-# 🌐 Hướng Dẫn Deploy Ứng Dụng Messenger Web Lên Online (Miễn Phí 100%)
+# 🌐 Hướng Dẫn Deploy Chi Tiết: Vercel (Frontend) + Render (Backend) + Cloud Database
 
-Chào bạn! Ứng dụng Messenger Web đã được cấu hình tối ưu để có thể **chạy trên môi trường internet toàn cầu**, hỗ trợ kết nối thời gian thực qua WebSockets (Socket.IO) và phục vụ trọn gói cả Backend + Frontend trên 1 cổng duy nhất.
-
-Dưới đây là 3 phương án deploy đơn giản, phổ biến và tốt nhất. **Khuyên dùng Phương án 1 (Render.com)** vì hoàn toàn miễn phí, hỗ trợ WebSockets bền vững và đã có sẵn file `render.yaml`.
-
----
-
-## 🌟 PHƯƠNG ÁN 1: Deploy Lên Render.com (Khuyên dùng - Miễn phí 100%)
-
-Render.com là nền tảng Cloud hiện đại nhất cho các ứng dụng Node.js thời gian thực có WebSockets, tự động cấp tên miền HTTPS miễn phí (`https://ten-app-cua-ban.onrender.com`).
-
-### Bước 1: Đẩy mã nguồn lên GitHub của bạn
-1. Truy cập [github.com](https://github.com) và tạo một Repository mới (ví dụ: `messenger-web`, chọn chế độ **Public** hoặc **Private**).
-2. Mở PowerShell tại thư mục dự án `C:\Users\mrore\Tind` và chạy 3 lệnh sau (thay URL bằng link repo GitHub của bạn):
-   ```bash
-   git branch -M main
-   git remote add origin https://github.com/TÊN_GITHUB_CỦA_BẠN/TÊN_REPO.git
-   git push -u origin main
-   ```
-
-### Bước 2: Tạo Web Service trên Render
-1. Truy cập [render.com](https://render.com) và đăng nhập bằng tài khoản GitHub.
-2. Bấm nút **New +** ở góc trên bên phải ➔ Chọn **Web Service**.
-3. Chọn Repository GitHub vừa tạo (`messenger-web`) và bấm **Connect**.
-4. Điền các thông số như sau:
-   - **Name**: `messenger-web` (hoặc tên bất kỳ bạn thích).
-   - **Region**: `Singapore` (để tốc độ tải từ Việt Nam nhanh nhất).
-   - **Runtime**: `Node`.
-   - **Build Command**:
-     ```bash
-     npm install && npm run build
-     ```
-   - **Start Command**:
-     ```bash
-     npm start
-     ```
-   - **Instance Type**: Chọn **Free** ($0/tháng).
-5. Cuộn xuống mục **Environment Variables** (Tùy chọn):
-   - Thêm `NODE_ENV` = `production`
-   - Thêm `PORT` = `10000`
-6. Bấm nút **Create Web Service**.
-
-> ⏳ Render sẽ tự động kéo code, build frontend và khởi chạy server trong khoảng 2 phút. Sau khi hoàn tất, bạn sẽ nhận được đường link online dạng:
-> **`https://messenger-web-xxxx.onrender.com`**
-> Bạn có thể gửi link này cho bạn bè ở bất kỳ đâu để cùng vào chat!
+Chào bạn! Hệ thống Messenger Web đã được kiến trúc tách biệt hoàn hảo:
+* ⚛️ **Frontend** ➔ Deploy lên **Vercel** (Nền tảng tối ưu nhất cho React/Vite, CDN toàn cầu cực nhanh).
+* ☕ **Backend** ➔ Deploy lên **Render.com** (Hỗ trợ Java Spring Boot 17 qua Docker, hỗ trợ WebSockets bền vững).
+* 🐘 **Database** ➔ Deploy lên **Neon.tech** hoặc **Supabase** (PostgreSQL Cloud miễn phí vĩnh viễn).
 
 ---
 
-## 🚂 PHƯƠNG ÁN 2: Deploy Lên Railway.app (Siêu tốc độ)
+## 🗺️ SƠ ĐỒ KIẾN TRÚC TRIỂN KHAI
 
-Railway cũng hỗ trợ Node.js + WebSockets cực tốt và deploy tự động qua GitHub:
-
-1. Truy cập [railway.app](https://railway.app) và đăng nhập bằng GitHub.
-2. Bấm **New Project** ➔ Chọn **Deploy from GitHub repo**.
-3. Chọn repo `messenger-web`.
-4. Railway sẽ tự động nhận diện `Dockerfile` hoặc `package.json` và deploy ngay lập tức!
-5. Vào tab **Settings** ➔ Tại mục **Networking**, bấm **Generate Domain** để nhận đường link công khai dạng `https://messenger-web.up.railway.app`.
-
----
-
-## 🐳 PHƯƠNG ÁN 3: Chạy Bằng Docker Trên Mọi VPS / Server Riêng
-
-Nếu bạn có VPS riêng (Ubuntu, Debian, DigitalOcean, Linode, AWS EC2):
-
-1. Clone code về VPS:
-   ```bash
-   git clone <link-repo-github>
-   cd Tind
-   ```
-2. Build Docker container:
-   ```bash
-   docker build -t messenger-web .
-   ```
-3. Chạy container:
-   ```bash
-   docker run -d -p 80:3001 --name messenger --restart unless-stopped messenger-web
-   ```
-4. Truy cập trực tiếp qua địa chỉ IP của VPS: `http://IP_CỦA_VPS`.
+```text
+[ Người Dùng (Trình Duyệt/Điện Thoại) ]
+                  │
+        HTTPS     ▼
+  [ Vercel CDN: Frontend (React 18) ]
+                  │
+        WSS / STOMP WebSocket & REST API
+                  ▼
+  [ Render.com: Backend (Spring Boot 3) ]
+                  │
+        JDBC Connection (SSL)
+                  ▼
+  [ Neon / Supabase: Cloud PostgreSQL Database ]
+```
 
 ---
 
-## 💡 Cách Kiểm Tra & Thử Nghiệm Chat Online Sau Khi Deploy
+## 📌 BƯỚC 1: Tạo Database PostgreSQL Miễn Phí (Neon.tech hoặc Supabase)
 
-1. Mở đường link đã deploy trên máy tính của bạn:
-   - Nhập tên hiển thị: Ví dụ **Minh Tuấn**, username `@tuan123`, chọn avatar ➔ Bấm **Bắt đầu sử dụng**.
-2. Mở đường link đó trên **Điện thoại di động** hoặc bảo **Bạn bè** mở trên máy của họ:
-   - Nhập tên: Ví dụ **Hồng Nhung**, username `@nhung456`.
-3. Trên ô tìm kiếm:
-   - Minh Tuấn gõ `@nhung456` ➔ Bấm nút **Nhắn** để bắt đầu cuộc trò chuyện.
-   - Thử gửi tin nhắn, thả cảm xúc (❤️, 👍, 😂), gửi ảnh và thấy tin nhắn nhảy tức thì theo thời gian thực!
+Chúng ta dùng **Neon.tech** (Serverless Postgres miễn phí, tạo trong 30 giây):
+1. Truy cập [neon.tech](https://neon.tech) và đăng nhập bằng GitHub.
+2. Bấm **Create a project**, đặt tên dự án: `messenger-db`.
+3. Chọn Region: `Singapore (ap-southeast-1)` ➔ Bấm **Create project**.
+4. Bạn sẽ nhận được chuỗi **Connection string** dạng:
+   ```text
+   postgresql://alex:AbCdEf123456@ep-cool-lake-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
+   ```
+5. Hãy ghi lại 4 thông số:
+   * **Host**: `ep-cool-lake-123456.ap-southeast-1.aws.neon.tech`
+   * **Database**: `neondb`
+   * **Username**: `alex`
+   * **Password**: `AbCdEf123456`
+
+---
+
+## 📌 BƯỚC 2: Đẩy Toàn Bộ Dự Án Lên GitHub
+
+Mở PowerShell tại thư mục `C:\Users\mrore\Tind` và chạy:
+```bash
+git add .
+git commit -m "feat: complete spring boot 3 backend and react frontend for vercel and render"
+git branch -M main
+git remote add origin https://github.com/TÊN_GITHUB_CỦA_BẠN/TÊN_REPO.git
+git push -u origin main
+```
+
+---
+
+## 📌 BƯỚC 3: Deploy Backend Spring Boot Lên Render.com
+
+1. Truy cập [render.com](https://render.com) và đăng nhập bằng GitHub.
+2. Bấm nút **New +** ở góc phải ➔ Chọn **Web Service**.
+3. Chọn Repository vừa tạo ➔ Bấm **Connect**.
+4. Cấu hình dịch vụ:
+   * **Name**: `messenger-backend`
+   * **Region**: `Singapore`
+   * **Root Directory**: `backend` *(Rất quan trọng! Điền đúng chữ `backend`)*
+   * **Environment**: Chọn **Docker** *(Render sẽ tự động dùng file `backend/Dockerfile`)*
+   * **Instance Type**: Chọn **Free** ($0/tháng).
+5. Cuộn xuống mục **Environment Variables** và thêm các biến:
+   * `SPRING_DATASOURCE_URL`:
+     `jdbc:postgresql://ep-cool-lake-123456.ap-southeast-1.aws.neon.tech/neondb?sslmode=require`
+   * `SPRING_DATASOURCE_USERNAME`: `alex`
+   * `SPRING_DATASOURCE_PASSWORD`: `AbCdEf123456`
+   * `SPRING_DATASOURCE_DRIVER`: `org.postgresql.Driver`
+   * `SPRING_JPA_DIALECT`: `org.hibernate.dialect.PostgreSQLDialect`
+   * `PORT`: `8080`
+6. Bấm **Create Web Service**.
+
+> ⏳ Render sẽ tải Docker base, build Maven và khởi chạy Spring Boot trong khoảng 3-4 phút.
+> Khi hoàn tất, bạn sẽ nhận được đường link Backend dạng:
+> 👉 **`https://messenger-backend-xxxx.onrender.com`**
+> Bạn có thể kiểm tra đường link này tại: `https://messenger-backend-xxxx.onrender.com/health` (thấy `{"status":"ok"}`).
+
+---
+
+## 📌 BƯỚC 4: Deploy Frontend React Lên Vercel
+
+1. Truy cập [vercel.com](https://vercel.com) và đăng nhập bằng GitHub.
+2. Bấm **Add New...** ➔ Chọn **Project**.
+3. Chọn repository của bạn ➔ Bấm **Import**.
+4. Cấu hình dự án trên Vercel:
+   * **Project Name**: `messenger-web`
+   * **Framework Preset**: `Vite`
+   * **Root Directory**: Bấm nút **Edit** và chọn thư mục `frontend` *(Rất quan trọng!)*
+5. Mở mục **Environment Variables** và thêm 2 biến sau:
+   * `VITE_API_URL` = `https://messenger-backend-xxxx.onrender.com` *(Link Render backend của bạn)*
+   * `VITE_WS_URL` = `https://messenger-backend-xxxx.onrender.com/ws` *(Link WebSocket STOMP backend)*
+6. Bấm **Deploy**.
+
+> 🎉 Chỉ sau 30 giây, Vercel sẽ cấp cho bạn tên miền chính thức dạng:
+> 👉 **`https://messenger-web-xxxx.vercel.app`**
+
+---
+
+## 🎯 CÁCH KIỂM THỬ ỨNG DỤNG SAU KHI DEPLOY
+
+1. Truy cập link Vercel trên máy tính:
+   * Đăng ký tên hiển thị: **Minh Tuấn** (`@tuan123`).
+2. Mở link trên điện thoại của bạn hoặc gửi cho bạn bè:
+   * Đăng ký tên: **Hồng Nhung** (`@nhung456`).
+3. Gõ `@nhung456` vào thanh tìm kiếm và bấm **Nhắn**:
+   * Tin nhắn gửi qua lại tức thì qua STOMP WebSocket.
+   * Thả tim (❤️), haha (😂), gửi ảnh, thu hồi tin nhắn mượt mà.
+   * Dữ liệu được lưu trữ vĩnh viễn trên Cloud PostgreSQL (Neon)!

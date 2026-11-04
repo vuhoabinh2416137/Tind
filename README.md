@@ -1,104 +1,93 @@
-# 💬 Messenger Web - Real-time Chat Application
+# 💬 Messenger Web - Spring Boot 3 & React 18 Fullstack
 
-Ứng dụng web chat thời gian thực mô phỏng giao diện và trải nghiệm của **Facebook Messenger**, được xây dựng với công nghệ hiện đại: **React 18**, **Tailwind CSS**, **Node.js**, **Express**, và **Socket.IO**.
-
----
-
-## ✨ Tính Năng Nổi Bật
-
-1. **Giao Diện Chuẩn Messenger**:
-   - Tông màu xanh gradient đặc trưng (#0084FF).
-   - Chế độ Sáng / Tối (Light & Dark Mode) mượt mà.
-   - Hiệu ứng âm thanh thông báo chuẩn Messenger (sử dụng Web Audio API không phụ thuộc file ngoài).
-   - Thiết kế đáp ứng (Responsive), thanh cuộn siêu mỏng chuẩn Messenger.
-
-2. **Tính Năng Chat Thời Gian Thực (Socket.IO)**:
-   - **Gửi & Nhận tin nhắn tức thì**: Không cần tải lại trang.
-   - **Chỉ báo gõ phím (Typing Indicator)**: 3 dấu chấm nhảy động khi đối phương đang soạn thảo.
-   - **Biểu tượng cảm xúc (Reactions)**: 6 biểu tượng chuẩn (👍, ❤️, 😂, 😮, 😢, 😡) với bộ đếm và animation.
-   - **Thu hồi tin nhắn (Unsend)**: Người gửi có thể thu hồi tin nhắn phía cả 2 người.
-   - **Đã xem (Seen Receipts)**: Hiển thị avatar thu nhỏ của người đọc ở góc dưới tin nhắn.
-   - **Nút Thích nhanh (Quick Like 👍)**: Bấm 1 chạm để gửi ngay biểu tượng thích hoặc biểu tượng tùy chỉnh của cuộc trò chuyện.
-   - **Trả lời tin nhắn (Quote / Reply)**: Kèm trích dẫn tin nhắn gốc.
-
-3. **Gửi File & Hình Ảnh**:
-   - Gửi ảnh trực tiếp từ máy tính (hỗ trợ JPG, PNG, GIF, WebP).
-   - Xem ảnh phóng to toàn màn hình với trình xem **Media Lightbox**.
-   - Thư viện ảnh đã chia sẻ trong thanh thông tin đoạn chat.
-
-4. **Trợ Lý Thông Minh Meta AI**:
-   - Tích hợp sẵn bot "Meta AI" trả lời tự động bằng tiếng Việt với các câu trả lời thông minh, dí dỏm và thân thiện.
-   - Người dùng có thể trải nghiệm chat ngay lập tức mà không cần tài khoản thứ hai.
-
-5. **Bộ Chuyển Đổi Tài Khoản Nhanh (User Switcher)**:
-   - Chuyển đổi giữa các tài khoản demo (**Đức Anh**, **Bảo Long**, **Khánh Vy**, **Meta AI**) chỉ bằng 1 cú nhấp chuột.
-   - Cho phép mở 2 tab trình duyệt hoặc 1 tab ẩn danh để chat 2 chiều thực tế.
-
-6. **Tùy Chỉnh Đoạn Chat**:
-   - Đổi bảng màu chủ đề (Messenger Blue, Rose Pink, Electric Purple, Emerald Green, Sunset Amber).
-   - Đổi biểu tượng cảm xúc mặc định (👍, ❤️, 🔥, ⚡, 🎉, 🚀).
-
----
-
-## 🚀 Hướng Dẫn Khởi Chạy
-
-### 1. Cài đặt các gói phụ thuộc (nếu chưa cài):
-```bash
-npm install
-```
-
-### 2. Khởi chạy ở chế độ Phát triển (Dev Mode):
-Chạy đồng thời cả máy chủ Backend (Port 3001) và máy khách Frontend Vite (Port 5173):
-```bash
-npm run dev
-```
-Sau đó mở trình duyệt tại: **http://localhost:5173**
-
-### 3. Chạy ở chế độ Production:
-```bash
-npm run build
-npm start
-```
-Truy cập tại: **http://localhost:3001**
-
-### 4. Chạy kiểm thử tự động (Test Suite):
-```bash
-npm test
-```
-Kiểm thử toàn diện REST API, kết nối 2 Socket.IO đồng thời, gửi tin nhắn, đồng bộ reaction, thu hồi tin nhắn và phản hồi từ Meta AI bot.
+Hệ thống ứng dụng chat thời gian thực mô phỏng giao diện và trải nghiệm của **Facebook Messenger**, được kiến trúc lại hoàn chỉnh theo mô hình **Tách biệt Độc lập (Decoupled Fullstack)**:
+* ☕ **Backend**: Java **Spring Boot 3.2.5** (Java 17, Spring Data JPA, Spring WebSocket STOMP + SockJS, H2 Database dev & PostgreSQL prod).
+* ⚛️ **Frontend**: **React 18**, **Vite**, **Tailwind CSS**, **@stomp/stompjs**, tối ưu hóa triển khai trên **Vercel**.
+* 🌐 **Sẵn sàng Deploy Cloud**:
+  * **Frontend**: Deploy lên **Vercel** (`vercel.json`)
+  * **Backend**: Deploy lên **Render.com** (Multi-stage `Dockerfile`)
+  * **Database**: Tự động chuyển đổi sang **PostgreSQL Cloud** (Neon, Supabase, Render Postgres) qua biến môi trường `SPRING_DATASOURCE_URL`.
 
 ---
 
 ## 📁 Cấu Trúc Dự Án
 
-```
+```text
 Tind/
-├── server/
-│   ├── index.js          # Express server & Socket.IO realtime engine
-│   ├── storage.js        # Quản lý lưu trữ tin nhắn, phòng chat, người dùng
-│   └── bot.js            # Xử lý phản hồi thông minh cho Meta AI
-├── src/
-│   ├── components/
-│   │   ├── Sidebar.jsx             # Danh sách đoạn chat & tìm kiếm
-│   │   ├── ActiveContactsTray.jsx  # Thanh bạn bè trực tuyến
-│   │   ├── ChatArea.jsx            # Khung chat chính & Header
-│   │   ├── MessageList.jsx         # Luồng hiển thị bong bóng tin nhắn
-│   │   ├── MessageBubble.jsx       # Bong bóng chat, reactions & unsend
-│   │   ├── ChatInput.jsx           # Ô nhập liệu, upload ảnh, Quick Like
-│   │   ├── RightSidebar.jsx        # Thông tin chat, đổi theme, xem ảnh
-│   │   ├── UserSwitcherModal.jsx   # Hộp thoại đổi tài khoản nhanh
-│   │   └── MediaLightbox.jsx       # Trình xem ảnh phóng to
-│   ├── context/
-│   │   └── ChatContext.jsx         # Quản trị State & Socket.IO Client
-│   ├── utils/
-│   │   ├── sound.js                # Hiệu ứng âm thanh qua Web Audio API
-│   │   └── date.js                 # Định dạng thời gian tiếng Việt
-│   ├── App.jsx
-│   ├── main.jsx
-│   └── index.css
-├── tests/
-│   └── messenger.test.js # Test suite tự động cho REST & Socket.IO
-├── package.json
-├── tailwind.config.js
-└── vite.config.js
+├── backend/                       # Java Spring Boot Service
+│   ├── src/main/java/com/messenger/
+│   │   ├── config/                # WebSocketConfig (STOMP), CorsConfig, DataInitializer
+│   │   ├── controller/            # REST & WebSocket STOMP Controllers
+│   │   ├── dto/                   # DTOs truyền nhận dữ liệu
+│   │   ├── model/                 # JPA Entities (User, Conversation, Message, Reaction, Seen)
+│   │   ├── repository/            # Spring Data JPA Repositories
+│   │   └── service/               # Logic nghiệp vụ & Trợ lý ảo Meta AI
+│   ├── src/main/resources/        # application.properties (H2 dev + PostgreSQL prod)
+│   ├── src/test/java/             # Spring Boot Integration Tests
+│   ├── Dockerfile                 # Multi-stage Dockerfile cho Render.com
+│   └── pom.xml                    # Maven Project Configuration
+│
+├── frontend/                      # React SPA
+│   ├── src/
+│   │   ├── components/            # Giao diện chuẩn Facebook Messenger
+│   │   ├── context/ChatContext.jsx# STOMP WebSocket Client & State
+│   │   └── utils/                 # Âm thanh thông báo Web Audio API, ngày tháng
+│   ├── vercel.json                # Cấu hình Routing & Proxy trên Vercel
+│   ├── package.json
+│   └── vite.config.js
+│
+├── DEPLOYMENT_GUIDE.md            # Hướng dẫn chi tiết Deploy Vercel + Render + Cloud DB
+└── README.md
 ```
+
+---
+
+## ⚡ Hướng Dẫn Chạy Dưới Local (Development)
+
+### 1. Khởi chạy Backend (Spring Boot 3)
+Mở cửa sổ Terminal thứ nhất:
+```bash
+cd backend
+mvn spring-boot:run
+```
+* Backend sẽ chạy tại: **http://localhost:8080**
+* Endpoint kiểm tra trạng thái: **http://localhost:8080/health**
+* Giao diện H2 Database Console: **http://localhost:8080/h2-console** (JDBC URL: `jdbc:h2:file:./data/messenger_db`)
+* Server sẽ tự động khởi tạo (seed) 4 tài khoản mẫu:
+  * `ducanh` (Đức Anh)
+  * `baolong` (Bảo Long)
+  * `khanhvy` (Khánh Vy)
+  * `meta_ai` (Meta AI Bot)
+
+### 2. Khởi chạy Frontend (React + Vite)
+Mở cửa sổ Terminal thứ hai:
+```bash
+cd frontend
+npm install
+npm run dev
+```
+* Mở trình duyệt tại: **http://localhost:5173**
+
+---
+
+## ✨ Tính Năng Nổi Bật Chuẩn Facebook Messenger
+
+1. **Giao Diện Chuẩn Messenger**:
+   * Tông màu xanh gradient đặc trưng (#0084FF).
+   * Chế độ Sáng / Tối (Light & Dark Mode) mượt mà.
+   * Thanh Stories / Bạn bè trực tuyến với chấm xanh online.
+   * Âm thanh thông báo tin nhắn (Web Audio API không phụ thuộc file ngoài).
+2. **Giao Thức STOMP WebSocket Thời Gian Thực**:
+   * Gửi và nhận tin nhắn tức thì qua topic `/topic/conversation.{id}`.
+   * Chỉ báo đang gõ (Typing Indicator: 3 chấm nhảy động) qua `/topic/conversation.{id}.typing`.
+   * Thả cảm xúc 6 biểu tượng (👍, ❤️, 😂, 😮, 😢, 😡) đồng bộ trực tiếp qua `/topic/conversation.{id}.reaction`.
+   * Thu hồi tin nhắn (Unsend for everyone) qua `/topic/conversation.{id}.unsend`.
+   * Trạng thái Đã xem (Seen receipt) với avatar người xem thu nhỏ qua `/topic/conversation.{id}.seen`.
+   * Tùy chỉnh màu chủ đề & Quick Emoji qua `/topic/conversation.{id}.theme`.
+3. **Trợ Lý Thông Minh Meta AI**:
+   * Tích hợp bot thông minh trả lời tự động bằng tiếng Việt với các câu trả lời dí dỏm, tư vấn công nghệ và trò chuyện 24/7.
+4. **Tìm Kiếm & Khám Phá Bạn Bè (User Discovery)**:
+   * Tìm kiếm theo `@username` hoặc họ tên để bắt đầu đoạn chat mới.
+5. **Đăng Nhập / Đăng Ký Đa Thiết Bị**:
+   * Đăng ký tên hiển thị, `@username` và chọn avatar cá nhân.
+   * Nút đổi tài khoản nhanh để kiểm thử chat 2 chiều ngay trên một máy tính.
