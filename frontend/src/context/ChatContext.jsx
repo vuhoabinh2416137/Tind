@@ -13,10 +13,16 @@ export const useChat = () => {
   return context;
 };
 
-// Base URLs configurable via environment variables (e.g. on Vercel)
-const API_URL = import.meta.env.VITE_API_URL || '';
+// Base URLs configurable via environment variables (e.g. on Vercel) with production fallback
+const API_URL = import.meta.env.VITE_API_URL || (
+  typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+    ? 'https://tind-messenger-backend.onrender.com'
+    : ''
+);
 const WS_URL = import.meta.env.VITE_WS_URL || (
-  window.location.protocol === 'https:' ? `https://${window.location.host}/ws` : 'http://localhost:8080/ws'
+  typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+    ? 'https://tind-messenger-backend.onrender.com/ws'
+    : (window.location.protocol === 'https:' ? `https://${window.location.host}/ws` : 'http://localhost:8080/ws')
 );
 
 export const ChatProvider = ({ children }) => {
