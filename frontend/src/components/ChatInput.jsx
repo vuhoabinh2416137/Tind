@@ -19,9 +19,26 @@ export default function ChatInput() {
   const [isUploading, setIsUploading] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const fileInputRef = useRef(null);
+  const inputRef = useRef(null);
 
   const convTheme = activeConversation?.theme || '#0084FF';
   const quickEmoji = activeConversation?.quickEmoji || '👍';
+
+  const wrapSelection = (wrapper) => {
+    if (!inputRef.current) return;
+    const input = inputRef.current;
+    const start = input.selectionStart || 0;
+    const end = input.selectionEnd || 0;
+    const selected = text.slice(start, end);
+    const replacement = selected ? `${wrapper}${selected}${wrapper}` : `${wrapper}${wrapper}`;
+    const newText = text.slice(0, start) + replacement + text.slice(end);
+    setText(newText);
+    setTimeout(() => {
+      input.focus();
+      const cursor = selected ? start + replacement.length : start + wrapper.length;
+      input.setSelectionRange(cursor, cursor);
+    }, 10);
+  };
 
   const handleTextChange = (e) => {
     setText(e.target.value);
@@ -36,6 +53,22 @@ export default function ChatInput() {
   };
 
   const handleKeyDown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      wrapSelection('**');
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+      e.preventDefault();
+      wrapSelection('*');
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+      e.preventDefault();
+      wrapSelection('`');
+      return;
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -111,6 +144,45 @@ export default function ChatInput() {
         </div>
       )}
 
+      {/* Rich Text Quick Formatting Toolbar */}
+      {text.length > 0 && (
+        <div className="flex items-center gap-1.5 mb-2 px-2 text-xs text-gray-500 dark:text-gray-400 select-none animate-pop-in">
+          <span className="font-semibold text-[10px] mr-1 uppercase tracking-wider text-gray-400 dark:text-gray-500">Định dạng Tinode:</span>
+          <button
+            type="button"
+            onClick={() => wrapSelection('**')}
+            className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#28292a] dark:hover:bg-[#38393a] font-bold text-gray-700 dark:text-gray-200 text-xs transition-colors"
+            title="In đậm (Ctrl+B)"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onClick={() => wrapSelection('*')}
+            className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#28292a] dark:hover:bg-[#38393a] italic text-gray-700 dark:text-gray-200 text-xs transition-colors"
+            title="In nghiêng (Ctrl+I)"
+          >
+            I
+          </button>
+          <button
+            type="button"
+            onClick={() => wrapSelection('`')}
+            className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#28292a] dark:hover:bg-[#38393a] font-mono text-[11px] text-gray-700 dark:text-gray-200 transition-colors"
+            title="Mã code (Ctrl+E)"
+          >
+            &lt;/&gt;
+          </button>
+          <button
+            type="button"
+            onClick={() => wrapSelection('~~')}
+            className="px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-[#28292a] dark:hover:bg-[#38393a] line-through text-gray-700 dark:text-gray-200 text-xs transition-colors"
+            title="Gạch ngang"
+          >
+            S
+          </button>
+        </div>
+      )}
+
       {/* Main Input Row */}
       <div className="flex items-center space-x-2">
         {/* Attachment / Image Button */}
@@ -137,11 +209,12 @@ export default function ChatInput() {
         {/* Text Input Box */}
         <div className="flex-1 relative flex items-center bg-gray-100 dark:bg-[#242526] rounded-full px-4 py-2">
           <input
+            ref={inputRef}
             type="text"
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder="Nhập tin nhắn..."
+            placeholder="Nhập tin nhắn... (Hỗ trợ **in đậm**, *nghiêng*, `code`, @mention)"
             className="w-full bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder-gray-500 focus:outline-none"
           />
 

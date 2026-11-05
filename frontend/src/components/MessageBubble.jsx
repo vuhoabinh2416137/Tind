@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Reply, Trash2, Copy, Check } from 'lucide-react';
 import { useChat } from '../context/ChatContext';
+import DraftyRenderer from './DraftyRenderer';
 
 const EMOJI_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
@@ -97,9 +98,12 @@ export default function MessageBubble({ message, isLastInGroup, isFirstInGroup, 
                 className="max-h-80 w-auto object-cover cursor-pointer hover:opacity-95 transition-opacity"
               />
               {message.text && (
-                <p className="p-2.5 text-sm text-gray-900 dark:text-gray-100">
-                  {message.text}
-                </p>
+                <div className="p-2.5 text-sm text-gray-900 dark:text-gray-100">
+                  <DraftyRenderer
+                    content={message.drafty || message.text}
+                    onMediaClick={(url) => setLightboxMedia(url)}
+                  />
+                </div>
               )}
             </div>
           ) : (
@@ -112,7 +116,10 @@ export default function MessageBubble({ message, isLastInGroup, isFirstInGroup, 
                   : 'bg-gray-100 dark:bg-[#303030] text-gray-900 dark:text-[#f0f2f5] rounded-bl-sm'
               }`}
             >
-              {message.text}
+              <DraftyRenderer
+                content={message.drafty || message.text}
+                onMediaClick={(url) => setLightboxMedia(url)}
+              />
             </div>
           )}
 
