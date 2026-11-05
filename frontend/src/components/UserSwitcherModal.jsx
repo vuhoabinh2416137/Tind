@@ -42,7 +42,7 @@ export default function UserSwitcherModal() {
 
         {/* Users List */}
         <div className="p-4 space-y-2">
-          {allUsers.map((user) => {
+          {(Array.isArray(allUsers) ? allUsers : []).map((user) => {
             const isSelected = user.id === currentUser?.id;
             return (
               <button

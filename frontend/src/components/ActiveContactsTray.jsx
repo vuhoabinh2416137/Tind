@@ -4,7 +4,7 @@ import { useChat } from '../context/ChatContext';
 export default function ActiveContactsTray() {
   const { allUsers, currentUser, startConversationWithUser } = useChat();
 
-  const otherUsers = allUsers.filter(u => u.id !== currentUser?.id);
+  const otherUsers = (Array.isArray(allUsers) ? allUsers : []).filter(u => u.id !== currentUser?.id);
 
   return (
     <div className="py-2 px-3 flex items-center space-x-3 overflow-x-auto no-scrollbar border-b border-gray-100 dark:border-[#2f3031]">

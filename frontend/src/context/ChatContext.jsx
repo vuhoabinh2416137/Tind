@@ -76,9 +76,17 @@ export const ChatProvider = ({ children }) => {
     fetch(`${API_URL}/api/users`)
       .then(res => res.json())
       .then(users => {
-        setAllUsers(users);
+        if (Array.isArray(users)) {
+          setAllUsers(users);
+        } else {
+          console.warn('Expected users to be an array, got:', users);
+          setAllUsers([]);
+        }
       })
-      .catch(err => console.error('Failed to load users:', err));
+      .catch(err => {
+        console.error('Failed to load users:', err);
+        setAllUsers([]);
+      });
   }, []);
 
   // Search users on platform
@@ -90,8 +98,11 @@ export const ChatProvider = ({ children }) => {
     const timer = setTimeout(() => {
       fetch(`${API_URL}/api/users/search?q=${encodeURIComponent(searchQuery)}&userId=${currentUser.id}`)
         .then(res => res.json())
-        .then(results => setSearchResults(results))
-        .catch(err => console.error('Search error:', err));
+        .then(results => setSearchResults(Array.isArray(results) ? results : []))
+        .catch(err => {
+          console.error('Search error:', err);
+          setSearchResults([]);
+        });
     }, 250);
     return () => clearTimeout(timer);
   }, [searchQuery, currentUser]);
@@ -183,12 +194,19 @@ export const ChatProvider = ({ children }) => {
     fetch(`${API_URL}/api/conversations?userId=${currentUser.id}`)
       .then(res => res.json())
       .then(convs => {
-        setConversations(convs);
-        if (convs.length > 0 && !activeConversation) {
-          selectConversation(convs[0]);
+        if (Array.isArray(convs)) {
+          setConversations(convs);
+          if (convs.length > 0 && !activeConversation) {
+            selectConversation(convs[0]);
+          }
+        } else {
+          setConversations([]);
         }
       })
-      .catch(err => console.error('Failed to load conversations:', err));
+      .catch(err => {
+        console.error('Failed to load conversations:', err);
+        setConversations([]);
+      });
   }, [currentUser]);
 
   // Active Conversation STOMP Subscriptions
@@ -318,9 +336,16 @@ export const ChatProvider = ({ children }) => {
     fetch(`${API_URL}/api/messages/${conv.id}`)
       .then(res => res.json())
       .then(msgs => {
-        setMessages(msgs);
+        if (Array.isArray(msgs)) {
+          setMessages(msgs);
+        } else {
+          setMessages([]);
+        }
       })
-      .catch(err => console.error('Failed to load messages:', err));
+      .catch(err => {
+        console.error('Failed to load messages:', err);
+        setMessages([]);
+      });
   };
 
   // Auth: Login

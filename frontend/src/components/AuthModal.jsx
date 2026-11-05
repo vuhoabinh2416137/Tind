@@ -195,7 +195,7 @@ export default function AuthModal() {
             Hoặc đăng nhập nhanh bằng tài khoản có sẵn:
           </p>
           <div className="flex items-center justify-center space-x-2">
-            {allUsers.slice(0, 3).map((u) => (
+            {(Array.isArray(allUsers) ? allUsers : []).slice(0, 3).map((u) => (
               <button
                 key={u.id}
                 type="button"
