@@ -1,33 +1,33 @@
 import React from 'react';
-import { useChat } from '../context/ChatContext';
+import { useChat, getDefaultAvatar } from '../context/ChatContext';
 
 export default function ActiveContactsTray() {
   const { allUsers, currentUser, startConversationWithUser } = useChat();
 
   const otherUsers = (Array.isArray(allUsers) ? allUsers : []).filter(u => u.id !== currentUser?.id);
 
+  if (otherUsers.length === 0) return null;
+
   return (
-    <div className="py-2 px-3 flex items-center space-x-3 overflow-x-auto no-scrollbar border-b border-gray-100 dark:border-[#2f3031]">
+    <div className="py-2.5 px-4 flex items-center space-x-3.5 overflow-x-auto no-scrollbar">
       {otherUsers.map(user => (
         <button
           key={user.id}
           onClick={() => startConversationWithUser(user.id)}
-          className="flex flex-col items-center flex-shrink-0 group focus:outline-none"
-          title={`Nhắn tin với ${user.name}`}
+          className="flex flex-col items-center flex-shrink-0 group focus:outline-none w-14"
+          title={user.name}
         >
           <div className="relative">
-            <div className="w-12 h-12 rounded-full p-[2px] border-2 border-messenger-blue group-hover:scale-105 transition-transform duration-200">
-              <img
-                src={user.avatar}
-                alt={user.name}
-                className="w-full h-full rounded-full object-cover"
-              />
-            </div>
+            <img
+              src={user.avatar || getDefaultAvatar(user.name)}
+              alt={user.name}
+              className="w-12 h-12 rounded-full object-cover group-hover:brightness-95 transition-all"
+            />
             {user.online && (
-              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white dark:border-[#18191a] rounded-full"></span>
+              <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#31a24c] border-2 border-white dark:border-[#18191a] rounded-full" />
             )}
           </div>
-          <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 mt-1 max-w-[54px] truncate text-center">
+          <span className="text-[12px] text-[#65676b] dark:text-[#b0b3b8] mt-1.5 w-full truncate text-center leading-tight">
             {(user.name || '').split(' ').slice(-1)[0] || 'User'}
           </span>
         </button>

@@ -47,38 +47,45 @@ class MessengerApplicationTests {
     }
 
     @Test
-    void testGetUsers() {
+    void testNoDemoUsersExist() {
         ResponseEntity<List> response = restTemplate.getForEntity(getBaseUrl() + "/api/users", List.class);
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
-        assertTrue(response.getBody().size() >= 4);
+        for (Object item : response.getBody()) {
+            if (item instanceof Map<?, ?> map) {
+                Object id = map.get("id");
+                assertNotEquals("u_ducanh", id);
+                assertNotEquals("u_baolong", id);
+                assertNotEquals("u_khanhvy", id);
+                assertNotEquals("u_meta_ai", id);
+            }
+        }
     }
 
     @Test
-    void testRegisterAndLogin() {
+    void testRegisterAndLoginWithPassword() {
         String username = "testuser_" + System.currentTimeMillis();
         RegisterRequest req = new RegisterRequest();
-        req.setName("Tester");
+        req.setName("Tester Messenger");
         req.setUsername(username);
-        req.setStatus("Testing Spring Boot");
+        req.setPassword("secret123");
 
         ResponseEntity<User> regRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/register", req, User.class);
         assertEquals(HttpStatus.OK, regRes.getStatusCode());
         assertNotNull(regRes.getBody());
         assertEquals(username, regRes.getBody().getUsername());
+        assertNotNull(regRes.getBody().getAvatar());
 
-        AuthRequest loginReq = new AuthRequest(username);
+        // Valid login
+        AuthRequest loginReq = new AuthRequest(username, "secret123");
         ResponseEntity<User> loginRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", loginReq, User.class);
         assertEquals(HttpStatus.OK, loginRes.getStatusCode());
         assertNotNull(loginRes.getBody());
         assertEquals(username, loginRes.getBody().getUsername());
-    }
 
-    @Test
-    void testGetConversations() {
-        ResponseEntity<List> response = restTemplate.getForEntity(getBaseUrl() + "/api/conversations?userId=u_ducanh", List.class);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-        assertTrue(response.getBody().size() >= 2);
+        // Invalid password login
+        AuthRequest wrongPassReq = new AuthRequest(username, "wrongpass");
+        ResponseEntity<Map> wrongRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", wrongPassReq, Map.class);
+        assertEquals(HttpStatus.NOT_FOUND, wrongRes.getStatusCode());
     }
 }

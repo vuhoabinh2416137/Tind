@@ -1,5 +1,6 @@
 package com.messenger.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import java.time.Instant;
 
@@ -15,6 +16,9 @@ public class User {
 
     @Column(nullable = false)
     private String name;
+
+    @JsonIgnore
+    private String password;
 
     @Column(length = 1000)
     private String avatar;
@@ -52,6 +56,9 @@ public class User {
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
 
     public String getAvatar() { return avatar; }
     public void setAvatar(String avatar) { this.avatar = avatar; }

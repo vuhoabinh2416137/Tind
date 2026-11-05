@@ -13,6 +13,19 @@ export const useChat = () => {
   return context;
 };
 
+// Legacy demo user IDs to purge/ignore
+const DEMO_USER_IDS = new Set(['u_ducanh', 'u_baolong', 'u_khanhvy', 'u_meta_ai']);
+const DEMO_CONV_IDS = new Set([
+  'c_u_baolong_u_ducanh',
+  'c_u_ducanh_u_khanhvy',
+  'c_u_ducanh_u_meta_ai'
+]);
+
+export const getDefaultAvatar = (name = 'User') => {
+  const cleanName = (name || 'User').trim();
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0084FF&color=fff&bold=true&size=150`;
+};
+
 // Base URLs configurable via environment variables (e.g. on Vercel) with production fallback
 const rawApiUrl = import.meta.env.VITE_API_URL || (
   typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
@@ -24,22 +37,34 @@ const API_URL = rawApiUrl ? rawApiUrl.replace(/\/+$/, '') : '';
 const rawWsUrl = import.meta.env.VITE_WS_URL || (
   typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
     ? 'https://tind-messenger-backend.onrender.com/ws'
-    : (window.location.protocol === 'https:' ? `https://${window.location.host}/ws` : 'http://localhost:8080/ws')
+    : (typeof window !== 'undefined' && window.location.protocol === 'https:'
+      ? `https://${window.location.host}/ws`
+      : 'http://localhost:8080/ws')
 );
 const WS_URL = rawWsUrl ? rawWsUrl.replace(/\/+$/, '') : '';
 
 export const ChatProvider = ({ children }) => {
   // Theme state
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    return localStorage.getItem('theme') === 'dark' || 
+    return localStorage.getItem('theme') === 'dark' ||
       (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
   });
 
-  // Users state
+  // Users state (excluding any legacy demo users)
   const [allUsers, setAllUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('messenger_active_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('messenger_active_user');
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      if (!parsed || DEMO_USER_IDS.has(parsed.id)) {
+        localStorage.removeItem('messenger_active_user');
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
   });
 
   // Conversations & Messages
@@ -49,10 +74,9 @@ export const ChatProvider = ({ children }) => {
   const [typingUsers, setTypingUsers] = useState({}); // userId -> boolean
 
   // UI States
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
   const [replyingTo, setReplyingTo] = useState(null);
   const [lightboxMedia, setLightboxMedia] = useState(null);
-  const [isUserSwitcherOpen, setIsUserSwitcherOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
 
@@ -74,15 +98,14 @@ export const ChatProvider = ({ children }) => {
 
   const toggleTheme = () => setIsDarkMode(prev => !prev);
 
-  // Load all users on mount
+  // Load all non-demo users on mount
   useEffect(() => {
     fetch(`${API_URL}/api/users`)
       .then(res => res.json())
       .then(users => {
         if (Array.isArray(users)) {
-          setAllUsers(users);
+          setAllUsers(users.filter(u => u && !DEMO_USER_IDS.has(u.id)));
         } else {
-          console.warn('Expected users to be an array, got:', users);
           setAllUsers([]);
         }
       })
@@ -101,7 +124,13 @@ export const ChatProvider = ({ children }) => {
     const timer = setTimeout(() => {
       fetch(`${API_URL}/api/users/search?q=${encodeURIComponent(searchQuery)}&userId=${currentUser.id}`)
         .then(res => res.json())
-        .then(results => setSearchResults(Array.isArray(results) ? results : []))
+        .then(results => {
+          if (Array.isArray(results)) {
+            setSearchResults(results.filter(u => u && !DEMO_USER_IDS.has(u.id)));
+          } else {
+            setSearchResults([]);
+          }
+        })
         .catch(err => {
           console.error('Search error:', err);
           setSearchResults([]);
@@ -119,19 +148,19 @@ export const ChatProvider = ({ children }) => {
       reconnectDelay: 5000,
       heartbeatIncoming: 4000,
       heartbeatOutgoing: 4000,
-      debug: () => {}, // Suppress noisy debug logs in production
+      debug: () => {},
       onConnect: () => {
         // 1. Subscribe to presence events
         client.subscribe('/topic/presence', (msg) => {
           try {
             const data = JSON.parse(msg.body);
-            if (data.newUser) {
+            if (data.newUser && !DEMO_USER_IDS.has(data.newUser.id)) {
               setAllUsers(prev => {
                 if (prev.some(u => u.id === data.newUser.id)) return prev;
                 return [...prev, data.newUser];
               });
             }
-            if (data.userId) {
+            if (data.userId && !DEMO_USER_IDS.has(data.userId)) {
               setAllUsers(prev => prev.map(u => u.id === data.userId ? { ...u, online: data.online } : u));
               setConversations(prev => prev.map(c => {
                 if (c.participants?.includes(data.userId) && c.participants?.find(p => p !== currentUser.id) === data.userId) {
@@ -198,9 +227,14 @@ export const ChatProvider = ({ children }) => {
       .then(res => res.json())
       .then(convs => {
         if (Array.isArray(convs)) {
-          setConversations(convs);
-          if (convs.length > 0 && !activeConversation) {
-            selectConversation(convs[0]);
+          const validConvs = convs.filter(c =>
+            c &&
+            !DEMO_CONV_IDS.has(c.id) &&
+            !(Array.isArray(c.participants) && c.participants.some(p => DEMO_USER_IDS.has(p)))
+          );
+          setConversations(validConvs);
+          if (validConvs.length > 0 && !activeConversation) {
+            selectConversation(validConvs[0]);
           }
         } else {
           setConversations([]);
@@ -217,7 +251,6 @@ export const ChatProvider = ({ children }) => {
     const client = stompClientRef.current;
     if (!client || !client.connected || !activeConversation) return;
 
-    // Unsubscribe from previous conversation topics
     convSubscriptionsRef.current.forEach(sub => sub.unsubscribe());
     convSubscriptionsRef.current = [];
 
@@ -237,7 +270,6 @@ export const ChatProvider = ({ children }) => {
         soundEffects.playSend();
       }
 
-      // Update conversations list last message
       setConversations(prev => prev.map(c => {
         if (c.id === newMsg.conversationId) {
           return {
@@ -311,7 +343,6 @@ export const ChatProvider = ({ children }) => {
 
     convSubscriptionsRef.current = [subMessages, subTyping, subReaction, subUnsend, subSeen, subTheme];
 
-    // Mark messages as seen
     client.publish({
       destination: '/app/chat.seen',
       body: JSON.stringify({
@@ -332,10 +363,8 @@ export const ChatProvider = ({ children }) => {
     setReplyingTo(null);
     setTypingUsers({});
 
-    // Clear unread badge locally
     setConversations(prev => prev.map(c => c.id === conv.id ? { ...c, unreadCount: 0 } : c));
 
-    // Fetch messages
     fetch(`${API_URL}/api/messages/${conv.id}`)
       .then(res => res.json())
       .then(msgs => {
@@ -351,32 +380,99 @@ export const ChatProvider = ({ children }) => {
       });
   };
 
-  // Auth: Login
-  const login = async (username) => {
+  // Auth: Login with username & password
+  const login = async (username, password) => {
+    const cleanUsername = (username || '').trim().toLowerCase();
+    if (!cleanUsername) {
+      throw new Error('Vui lòng nhập tên người dùng hoặc email');
+    }
+    if (!password) {
+      throw new Error('Vui lòng nhập mật khẩu');
+    }
+
+    // Reject legacy demo usernames immediately
+    if (['ducanh', 'baolong', 'khanhvy', 'meta_ai'].includes(cleanUsername)) {
+      throw new Error('Tài khoản hoặc mật khẩu không chính xác');
+    }
+
+    // Check client-side password registry if stored
+    const localCredsRaw = localStorage.getItem('messenger_credentials_map');
+    const localCreds = localCredsRaw ? JSON.parse(localCredsRaw) : {};
+    if (localCreds[cleanUsername] && localCreds[cleanUsername] !== password) {
+      throw new Error('Tài khoản hoặc mật khẩu không chính xác');
+    }
+
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username })
+      body: JSON.stringify({ username: cleanUsername, password })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Đăng nhập thất bại');
-    setCurrentUser(data);
-    localStorage.setItem('messenger_active_user', JSON.stringify(data));
-    return data;
+    if (!res.ok) throw new Error(data.error || 'Tài khoản hoặc mật khẩu không chính xác');
+    if (DEMO_USER_IDS.has(data.id)) {
+      throw new Error('Tài khoản không tồn tại');
+    }
+
+    const userWithAvatar = {
+      ...data,
+      avatar: getDefaultAvatar(data.name)
+    };
+
+    setCurrentUser(userWithAvatar);
+    localStorage.setItem('messenger_active_user', JSON.stringify(userWithAvatar));
+    return userWithAvatar;
   };
 
-  // Auth: Register
-  const register = async ({ name, username, avatar }) => {
+  // Auth: Register new account (no avatar picker, automatic default avatar)
+  const register = async ({ name, username, password }) => {
+    const cleanName = (name || '').trim();
+    const cleanUsername = (username || '').trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
+
+    if (!cleanName) {
+      throw new Error('Vui lòng nhập họ và tên của bạn');
+    }
+    if (cleanUsername.length < 3) {
+      throw new Error('Tên đăng nhập phải có ít nhất 3 ký tự');
+    }
+    if (!password || password.length < 6) {
+      throw new Error('Mật khẩu phải có ít nhất 6 ký tự');
+    }
+    if (['ducanh', 'baolong', 'khanhvy', 'meta_ai'].includes(cleanUsername)) {
+      throw new Error('Tên đăng nhập này không khả dụng');
+    }
+
+    const defaultAvatar = getDefaultAvatar(cleanName);
+
     const res = await fetch(`${API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, username, avatar })
+      body: JSON.stringify({
+        name: cleanName,
+        username: cleanUsername,
+        password,
+        avatar: defaultAvatar
+      })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Đăng ký thất bại');
-    setCurrentUser(data);
-    localStorage.setItem('messenger_active_user', JSON.stringify(data));
-    return data;
+    if (!res.ok) throw new Error(data.error || 'Đăng ký tài khoản thất bại');
+
+    // Save credential locally as well for immediate verification
+    try {
+      const localCredsRaw = localStorage.getItem('messenger_credentials_map');
+      const localCreds = localCredsRaw ? JSON.parse(localCredsRaw) : {};
+      localCreds[cleanUsername] = password;
+      localStorage.setItem('messenger_credentials_map', JSON.stringify(localCreds));
+    } catch {}
+
+    const userWithAvatar = {
+      ...data,
+      avatar: defaultAvatar
+    };
+
+    setCurrentUser(userWithAvatar);
+    localStorage.setItem('messenger_active_user', JSON.stringify(userWithAvatar));
+    setAllUsers(prev => prev.some(u => u.id === userWithAvatar.id) ? prev : [...prev, userWithAvatar]);
+    return userWithAvatar;
   };
 
   // Auth: Logout
@@ -396,19 +492,9 @@ export const ChatProvider = ({ children }) => {
     setMessages([]);
   };
 
-  // Switch Active User (Demo)
-  const switchUser = (newUser) => {
-    if (newUser.id === currentUser?.id) return;
-    setCurrentUser(newUser);
-    localStorage.setItem('messenger_active_user', JSON.stringify(newUser));
-    setActiveConversation(null);
-    setMessages([]);
-    setIsUserSwitcherOpen(false);
-  };
-
   // Start or open conversation with user
   const startConversationWithUser = (targetUserId) => {
-    if (targetUserId === currentUser?.id) return;
+    if (!targetUserId || targetUserId === currentUser?.id || DEMO_USER_IDS.has(targetUserId)) return;
     fetch(`${API_URL}/api/conversations`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -419,9 +505,16 @@ export const ChatProvider = ({ children }) => {
         fetch(`${API_URL}/api/conversations?userId=${currentUser?.id}`)
           .then(res => res.json())
           .then(convs => {
-            setConversations(convs);
-            const found = convs.find(c => c.id === conv.id);
-            if (found) selectConversation(found);
+            if (Array.isArray(convs)) {
+              const validConvs = convs.filter(c =>
+                c &&
+                !DEMO_CONV_IDS.has(c.id) &&
+                !(Array.isArray(c.participants) && c.participants.some(p => DEMO_USER_IDS.has(p)))
+              );
+              setConversations(validConvs);
+              const found = validConvs.find(c => c.id === conv.id);
+              if (found) selectConversation(found);
+            }
           });
       })
       .catch(err => console.error('Failed to start conversation:', err));
@@ -541,7 +634,6 @@ export const ChatProvider = ({ children }) => {
         login,
         register,
         logout,
-        switchUser,
         conversations,
         activeConversation,
         selectConversation,
@@ -560,8 +652,6 @@ export const ChatProvider = ({ children }) => {
         setIsRightSidebarOpen,
         lightboxMedia,
         setLightboxMedia,
-        isUserSwitcherOpen,
-        setIsUserSwitcherOpen,
         searchQuery,
         setSearchQuery,
         searchResults,

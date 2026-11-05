@@ -1,25 +1,21 @@
 import React, { useEffect, useRef } from 'react';
-import { useChat } from '../context/ChatContext';
+import { useChat, getDefaultAvatar } from '../context/ChatContext';
 import MessageBubble from './MessageBubble';
-import { Bot, Sparkles } from 'lucide-react';
 
 export default function MessageList() {
   const { messages, activeConversation, typingUsers, currentUser } = useChat();
   const bottomRef = useRef(null);
 
-  // Auto scroll to bottom
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, typingUsers]);
 
   if (!activeConversation) return null;
 
-  // Check which user is typing
   const typingUserIds = Object.entries(typingUsers)
     .filter(([userId, isTyping]) => isTyping && userId !== currentUser?.id)
     .map(([userId]) => userId);
 
-  // Find the last message seen by the other participant
   const otherParticipantId = activeConversation.participants?.find(p => p !== currentUser?.id);
   let lastSeenMessageId = null;
 
@@ -32,70 +28,63 @@ export default function MessageList() {
   }
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
-      {/* Conversation Starter Top Card */}
-      <div className="py-8 flex flex-col items-center justify-center text-center">
+    <div className="flex-1 overflow-y-auto px-4 py-4">
+      {/* Messenger Profile Intro Card at top of conversation */}
+      <div className="pt-6 pb-8 flex flex-col items-center justify-center text-center">
         <div className="relative mb-3">
           <img
-            src={activeConversation.avatar}
+            src={activeConversation.avatar || getDefaultAvatar(activeConversation.name)}
             alt={activeConversation.name}
-            className="w-20 h-20 rounded-full object-cover shadow-md"
+            className="w-20 h-20 rounded-full object-cover"
           />
-          {activeConversation.isBot && (
-            <span className="absolute -bottom-1 -right-1 p-1.5 bg-gradient-to-r from-purple-500 to-indigo-600 rounded-full text-white shadow-md">
-              <Sparkles className="w-4 h-4" />
-            </span>
+          {activeConversation.online && (
+            <span className="absolute bottom-1 right-1 w-4 h-4 bg-[#31a24c] border-2 border-white dark:border-[#18191a] rounded-full" />
           )}
         </div>
 
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+        <h2 className="text-[17px] font-bold text-[#050505] dark:text-[#e4e6eb]">
           {activeConversation.name}
-          {activeConversation.isBot && (
-            <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-xs font-semibold rounded-full flex items-center gap-1">
-              <Bot className="w-3 h-3" /> AI
-            </span>
-          )}
         </h2>
 
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 max-w-xs">
-          {activeConversation.isBot
-            ? 'Trợ lý ảo thông minh chạy trên Spring Boot, luôn sẵn sàng giải đáp thắc mắc và trò chuyện 24/7.'
-            : 'Các bạn đã kết nối trên Messenger Web. Bắt đầu gửi tin nhắn hoặc biểu tượng cảm xúc!'}
+        <p className="text-[13px] text-[#65676b] dark:text-[#b0b3b8] mt-0.5">
+          Messenger · Các bạn đã được kết nối trên Messenger
         </p>
       </div>
 
-      {/* Messages */}
-      {messages.map((message, idx) => {
-        const nextMsg = messages[idx + 1];
-        const prevMsg = messages[idx - 1];
+      {/* Messages Stack */}
+      <div className="space-y-0.5">
+        {messages.map((message, idx) => {
+          const nextMsg = messages[idx + 1];
+          const prevMsg = messages[idx - 1];
 
-        const isLastInGroup = !nextMsg || nextMsg.senderId !== message.senderId;
-        const isFirstInGroup = !prevMsg || prevMsg.senderId !== message.senderId;
-        const isSeenByOther = message.id === lastSeenMessageId;
+          const isLastInGroup = !nextMsg || nextMsg.senderId !== message.senderId;
+          const isFirstInGroup = !prevMsg || prevMsg.senderId !== message.senderId;
+          const isSeenByOther = message.id === lastSeenMessageId;
 
-        return (
-          <MessageBubble
-            key={message.id || idx}
-            message={message}
-            isLastInGroup={isLastInGroup}
-            isFirstInGroup={isFirstInGroup}
-            isSeenByOther={isSeenByOther}
-          />
-        );
-      })}
+          return (
+            <MessageBubble
+              key={message.id || idx}
+              message={message}
+              isLastInGroup={isLastInGroup}
+              isFirstInGroup={isFirstInGroup}
+              isSeenByOther={isSeenByOther}
+            />
+          );
+        })}
+      </div>
 
       {/* Typing Indicator */}
       {typingUserIds.length > 0 && (
-        <div className="flex items-end space-x-2 mb-2 animate-pop-in">
+        <div className="flex items-end space-x-2 mt-2 mb-2 animate-pop-in">
           <img
-            src={activeConversation.avatar}
+            src={activeConversation.avatar || getDefaultAvatar(activeConversation.name)}
             alt="typing"
-            className="w-7 h-7 rounded-full object-cover mb-1"
+            className="w-7 h-7 rounded-full object-cover mb-0.5"
           />
-          <div className="px-4 py-3 bg-gray-100 dark:bg-[#303030] rounded-2xl rounded-bl-sm flex items-center space-x-1.5 shadow-sm">
-            <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce-dot-1"></span>
-            <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce-dot-2"></span>
-            <span className="w-2 h-2 bg-gray-500 rounded-full animate-bounce-dot-3"></span>
+          <div className="px-4 py-3 bg-[#f0f2f5] dark:bg-[#303030] rounded-[18px] rounded-bl-[4px] flex items-center space-x-1">
+            <span className="w-2 h-2 bg-[#65676b] dark:bg-[#b0b3b8] rounded-full animate-bounce-dot-1" />
+            <span className="w-2 h-2 bg-[#65676b] dark:bg-[#b0b3b8] rounded-full animate-bounce-dot-2" />
+            <span className="w-2 h-2 bg-[#65676b] dark:bg-[#b0b3b8] rounded-full animate-bounce-dot-3" />
           </div>
         </div>
       )}
