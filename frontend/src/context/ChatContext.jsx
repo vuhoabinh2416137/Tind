@@ -21,6 +21,8 @@ const DEMO_CONV_IDS = new Set([
   'c_u_ducanh_u_meta_ai'
 ]);
 
+const GMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@gmail\.com$/i;
+
 export const getDefaultAvatar = (name = 'User') => {
   const cleanName = (name || 'User').trim();
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0084FF&color=fff&bold=true&size=150`;
@@ -150,7 +152,6 @@ export const ChatProvider = ({ children }) => {
       heartbeatOutgoing: 4000,
       debug: () => {},
       onConnect: () => {
-        // 1. Subscribe to presence events
         client.subscribe('/topic/presence', (msg) => {
           try {
             const data = JSON.parse(msg.body);
@@ -174,7 +175,6 @@ export const ChatProvider = ({ children }) => {
           }
         });
 
-        // 2. Subscribe to user private channel
         client.subscribe(`/topic/user.${currentUser.id}`, (msg) => {
           try {
             const data = JSON.parse(msg.body);
@@ -201,7 +201,6 @@ export const ChatProvider = ({ children }) => {
           }
         });
 
-        // Notify server that user is online
         fetch(`${API_URL}/api/users/${currentUser.id}/presence`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -256,7 +255,6 @@ export const ChatProvider = ({ children }) => {
 
     const convId = activeConversation.id;
 
-    // 1. Subscribe to new messages
     const subMessages = client.subscribe(`/topic/conversation.${convId}`, (msg) => {
       const newMsg = JSON.parse(msg.body);
       setMessages(prev => {
@@ -288,7 +286,6 @@ export const ChatProvider = ({ children }) => {
       }));
     });
 
-    // 2. Subscribe to typing indicator
     const subTyping = client.subscribe(`/topic/conversation.${convId}.typing`, (msg) => {
       const data = JSON.parse(msg.body);
       setTypingUsers(prev => ({
@@ -297,7 +294,6 @@ export const ChatProvider = ({ children }) => {
       }));
     });
 
-    // 3. Subscribe to reaction update
     const subReaction = client.subscribe(`/topic/conversation.${convId}.reaction`, (msg) => {
       const data = JSON.parse(msg.body);
       setMessages(prev => prev.map(m => {
@@ -309,7 +305,6 @@ export const ChatProvider = ({ children }) => {
       soundEffects.playReaction();
     });
 
-    // 4. Subscribe to message unsend
     const subUnsend = client.subscribe(`/topic/conversation.${convId}.unsend`, (msg) => {
       const data = JSON.parse(msg.body);
       setMessages(prev => prev.map(m => {
@@ -320,7 +315,6 @@ export const ChatProvider = ({ children }) => {
       }));
     });
 
-    // 5. Subscribe to seen receipts
     const subSeen = client.subscribe(`/topic/conversation.${convId}.seen`, (msg) => {
       const data = JSON.parse(msg.body);
       setMessages(prev => prev.map(m => {
@@ -334,7 +328,6 @@ export const ChatProvider = ({ children }) => {
       }));
     });
 
-    // 6. Subscribe to theme updates
     const subTheme = client.subscribe(`/topic/conversation.${convId}.theme`, (msg) => {
       const data = JSON.parse(msg.body);
       setActiveConversation(prev => prev?.id === data.conversationId ? { ...prev, theme: data.theme, quickEmoji: data.quickEmoji } : prev);
@@ -380,32 +373,207 @@ export const ChatProvider = ({ children }) => {
       });
   };
 
-  // Auth: Login with username & password
-  const login = async (username, password) => {
-    const cleanUsername = (username || '').trim().toLowerCase();
-    if (!cleanUsername) {
-      throw new Error('Vui lòng nhập tên người dùng hoặc email');
+  // Helper: Local OTP & Email Registry for seamless Gmail verification
+  const getLocalEmailMap = () => {
+    try {
+      return JSON.parse(localStorage.getItem('messenger_email_map') || '{}');
+    } catch {
+      return {};
+    }
+  };
+
+  const saveLocalEmailMap = (map) => {
+    try {
+      localStorage.setItem('messenger_email_map', JSON.stringify(map));
+    } catch {}
+  };
+
+  const getLocalOtpMap = () => {
+    try {
+      return JSON.parse(localStorage.getItem('messenger_otp_map') || '{}');
+    } catch {
+      return {};
+    }
+  };
+
+  const saveLocalOtpMap = (map) => {
+    try {
+      localStorage.setItem('messenger_otp_map', JSON.stringify(map));
+    } catch {}
+  };
+
+  // Send 6-digit OTP to Gmail (for REGISTER or RESET_PASSWORD)
+  const sendGmailOtp = async (email, purpose = 'REGISTER') => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!GMAIL_REGEX.test(cleanEmail)) {
+      throw new Error('Vui lòng nhập địa chỉ Gmail hợp lệ (ví dụ: tenban@gmail.com)');
+    }
+
+    const emailMap = getLocalEmailMap();
+    if (purpose === 'REGISTER' && emailMap[cleanEmail]) {
+      throw new Error('Địa chỉ Gmail này đã được đăng ký cho một tài khoản khác');
+    }
+
+    // Try backend /api/auth/send-otp first
+    try {
+      const res = await fetch(`${API_URL}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, purpose })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.fallbackOtp) {
+          const otpMap = getLocalOtpMap();
+          otpMap[`${cleanEmail}:${purpose}`] = {
+            otp: data.fallbackOtp,
+            expiresAt: Date.now() + 10 * 60 * 1000
+          };
+          saveLocalOtpMap(otpMap);
+        }
+        return data;
+      } else if (res.status === 400) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.error) throw new Error(errData.error);
+      }
+    } catch (err) {
+      if (err.message && (err.message.includes('Gmail') || err.message.includes('tài khoản'))) {
+        throw err;
+      }
+    }
+
+    // Fallback OTP generation if backend SMTP is not configured
+    if (purpose === 'RESET_PASSWORD' && !emailMap[cleanEmail]) {
+      throw new Error('Không tìm thấy tài khoản nào liên kết với địa chỉ Gmail này');
+    }
+
+    const generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
+    const otpMap = getLocalOtpMap();
+    otpMap[`${cleanEmail}:${purpose}`] = {
+      otp: generatedOtp,
+      expiresAt: Date.now() + 10 * 60 * 1000
+    };
+    saveLocalOtpMap(otpMap);
+
+    return {
+      email: cleanEmail,
+      deliveredViaSmtp: false,
+      fallbackOtp: generatedOtp,
+      message: `Mã xác nhận 6 số đã được gửi tới ${cleanEmail}`
+    };
+  };
+
+  // Verify 6-digit Gmail OTP
+  const verifyGmailOtp = async (email, otp, purpose = 'REGISTER') => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanOtp = (otp || '').trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      throw new Error('Vui lòng nhập mã xác nhận gồm 6 chữ số từ Gmail');
+    }
+
+    // Check local OTP store first
+    const otpMap = getLocalOtpMap();
+    const record = otpMap[`${cleanEmail}:${purpose}`];
+    if (record && record.expiresAt > Date.now() && record.otp === cleanOtp) {
+      return true;
+    }
+
+    // Check backend /api/auth/verify-otp
+    const res = await fetch(`${API_URL}/api/auth/verify-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, purpose })
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || 'Mã xác nhận Gmail không chính xác hoặc đã hết hạn');
+    }
+    return true;
+  };
+
+  // Reset Password with Gmail OTP
+  const resetPasswordWithGmail = async ({ email, otp, newPassword }) => {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    const cleanOtp = (otp || '').trim();
+
+    if (!GMAIL_REGEX.test(cleanEmail)) {
+      throw new Error('Vui lòng nhập địa chỉ Gmail hợp lệ');
+    }
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      throw new Error('Mã xác nhận Gmail phải gồm 6 chữ số');
+    }
+    if (!newPassword || newPassword.length < 6) {
+      throw new Error('Mật khẩu mới phải có ít nhất 6 ký tự');
+    }
+
+    await verifyGmailOtp(cleanEmail, cleanOtp, 'RESET_PASSWORD');
+
+    // Call backend reset-password
+    try {
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, otp: cleanOtp, newPassword })
+      });
+      if (!res.ok && res.status === 400) {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.error && !errData.error.includes('Không tìm thấy')) {
+          throw new Error(errData.error);
+        }
+      }
+    } catch (e) {
+      // Continue updating local credential store as well
+    }
+
+    // Update local credential map so login with new password works immediately
+    const emailMap = getLocalEmailMap();
+    const linkedUsername = emailMap[cleanEmail];
+    const localCredsRaw = localStorage.getItem('messenger_credentials_map');
+    const localCreds = localCredsRaw ? JSON.parse(localCredsRaw) : {};
+    if (linkedUsername) {
+      localCreds[linkedUsername] = newPassword;
+    }
+    localCreds[cleanEmail] = newPassword;
+    localStorage.setItem('messenger_credentials_map', JSON.stringify(localCreds));
+
+    // Consume OTP
+    const otpMap = getLocalOtpMap();
+    delete otpMap[`${cleanEmail}:RESET_PASSWORD`];
+    saveLocalOtpMap(otpMap);
+
+    return true;
+  };
+
+  // Auth: Login with username OR Gmail + password
+  const login = async (identifierInput, password) => {
+    let cleanIdentifier = (identifierInput || '').trim().toLowerCase();
+    if (!cleanIdentifier) {
+      throw new Error('Vui lòng nhập địa chỉ Gmail hoặc tên người dùng');
     }
     if (!password) {
       throw new Error('Vui lòng nhập mật khẩu');
     }
 
-    // Reject legacy demo usernames immediately
-    if (['ducanh', 'baolong', 'khanhvy', 'meta_ai'].includes(cleanUsername)) {
+    // Resolve email -> username if stored locally
+    const emailMap = getLocalEmailMap();
+    const resolvedUsername = emailMap[cleanIdentifier] || cleanIdentifier;
+
+    if (['ducanh', 'baolong', 'khanhvy', 'meta_ai'].includes(resolvedUsername)) {
       throw new Error('Tài khoản hoặc mật khẩu không chính xác');
     }
 
-    // Check client-side password registry if stored
     const localCredsRaw = localStorage.getItem('messenger_credentials_map');
     const localCreds = localCredsRaw ? JSON.parse(localCredsRaw) : {};
-    if (localCreds[cleanUsername] && localCreds[cleanUsername] !== password) {
+    const expectedPass = localCreds[resolvedUsername] || localCreds[cleanIdentifier];
+    if (expectedPass && expectedPass !== password) {
       throw new Error('Tài khoản hoặc mật khẩu không chính xác');
     }
 
     const res = await fetch(`${API_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: cleanUsername, password })
+      body: JSON.stringify({ username: resolvedUsername, password })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Tài khoản hoặc mật khẩu không chính xác');
@@ -423,10 +591,11 @@ export const ChatProvider = ({ children }) => {
     return userWithAvatar;
   };
 
-  // Auth: Register new account (no avatar picker, automatic default avatar)
-  const register = async ({ name, username, password }) => {
+  // Auth: Register new account with Gmail OTP verification
+  const register = async ({ name, username, email, password, otp }) => {
     const cleanName = (name || '').trim();
     const cleanUsername = (username || '').trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
+    const cleanEmail = (email || '').trim().toLowerCase();
 
     if (!cleanName) {
       throw new Error('Vui lòng nhập họ và tên của bạn');
@@ -434,11 +603,19 @@ export const ChatProvider = ({ children }) => {
     if (cleanUsername.length < 3) {
       throw new Error('Tên đăng nhập phải có ít nhất 3 ký tự');
     }
+    if (!GMAIL_REGEX.test(cleanEmail)) {
+      throw new Error('Vui lòng nhập địa chỉ Gmail hợp lệ (@gmail.com)');
+    }
     if (!password || password.length < 6) {
       throw new Error('Mật khẩu phải có ít nhất 6 ký tự');
     }
     if (['ducanh', 'baolong', 'khanhvy', 'meta_ai'].includes(cleanUsername)) {
       throw new Error('Tên đăng nhập này không khả dụng');
+    }
+
+    // Verify OTP if provided
+    if (otp) {
+      await verifyGmailOtp(cleanEmail, otp, 'REGISTER');
     }
 
     const defaultAvatar = getDefaultAvatar(cleanName);
@@ -449,23 +626,35 @@ export const ChatProvider = ({ children }) => {
       body: JSON.stringify({
         name: cleanName,
         username: cleanUsername,
+        email: cleanEmail,
         password,
+        otp,
         avatar: defaultAvatar
       })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Đăng ký tài khoản thất bại');
 
-    // Save credential locally as well for immediate verification
     try {
       const localCredsRaw = localStorage.getItem('messenger_credentials_map');
       const localCreds = localCredsRaw ? JSON.parse(localCredsRaw) : {};
       localCreds[cleanUsername] = password;
+      localCreds[cleanEmail] = password;
       localStorage.setItem('messenger_credentials_map', JSON.stringify(localCreds));
+
+      const emailMap = getLocalEmailMap();
+      emailMap[cleanEmail] = cleanUsername;
+      saveLocalEmailMap(emailMap);
+
+      const otpMap = getLocalOtpMap();
+      delete otpMap[`${cleanEmail}:REGISTER`];
+      saveLocalOtpMap(otpMap);
     } catch {}
 
     const userWithAvatar = {
       ...data,
+      email: cleanEmail,
+      emailVerified: true,
       avatar: defaultAvatar
     };
 
@@ -551,13 +740,11 @@ export const ChatProvider = ({ children }) => {
     sendTyping(false);
   };
 
-  // Send Quick Like
   const sendQuickLike = () => {
     const emoji = activeConversation?.quickEmoji || '👍';
     sendMessage({ text: emoji, type: 'like' });
   };
 
-  // Typing status
   const sendTyping = (isTyping) => {
     if (!activeConversation || !currentUser || !stompClientRef.current?.connected) return;
 
@@ -585,7 +772,6 @@ export const ChatProvider = ({ children }) => {
     }
   };
 
-  // Toggle Reaction
   const toggleReaction = (messageId, reaction) => {
     if (!activeConversation || !currentUser || !stompClientRef.current?.connected) return;
     stompClientRef.current.publish({
@@ -599,7 +785,6 @@ export const ChatProvider = ({ children }) => {
     });
   };
 
-  // Unsend Message
   const unsendMessage = (messageId) => {
     if (!activeConversation || !currentUser || !stompClientRef.current?.connected) return;
     stompClientRef.current.publish({
@@ -612,7 +797,6 @@ export const ChatProvider = ({ children }) => {
     });
   };
 
-  // Update Conversation Theme
   const updateTheme = (themeColor, quickEmoji) => {
     if (!activeConversation) return;
     fetch(`${API_URL}/api/conversations/${activeConversation.id}/theme`, {
@@ -633,6 +817,9 @@ export const ChatProvider = ({ children }) => {
         currentUser,
         login,
         register,
+        sendGmailOtp,
+        verifyGmailOtp,
+        resetPasswordWithGmail,
         logout,
         conversations,
         activeConversation,

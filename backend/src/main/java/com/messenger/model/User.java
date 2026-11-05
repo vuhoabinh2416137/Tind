@@ -14,6 +14,11 @@ public class User {
     @Column(nullable = false, unique = true)
     private String username;
 
+    @Column(unique = true)
+    private String email;
+
+    private Boolean emailVerified = false;
+
     @Column(nullable = false)
     private String name;
 
@@ -53,6 +58,12 @@ public class User {
 
     public String getUsername() { return username; }
     public void setUsername(String username) { this.username = username; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+
+    public boolean isEmailVerified() { return Boolean.TRUE.equals(emailVerified); }
+    public void setEmailVerified(Boolean emailVerified) { this.emailVerified = emailVerified; }
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }

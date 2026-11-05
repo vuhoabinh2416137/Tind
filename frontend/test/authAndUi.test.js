@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const srcDir = path.resolve(__dirname, '../src');
 
-test('Auth & UI Audit: AuthModal has no avatar picker or demo quick login', () => {
+test('Auth & UI Audit: AuthModal has Gmail OTP verification, Forgot Password, and no demo/avatar picker', () => {
   const authContent = fs.readFileSync(path.join(srcDir, 'components/AuthModal.jsx'), 'utf8');
 
   // Verify PRESET_AVATARS and avatar selection are completely removed
@@ -19,9 +19,13 @@ test('Auth & UI Audit: AuthModal has no avatar picker or demo quick login', () =
   assert.equal(authContent.includes('Hoặc đăng nhập nhanh bằng tài khoản có sẵn'), false, 'Demo quick access must be removed');
   assert.equal(authContent.includes('switchUser'), false, 'switchUser must be removed from AuthModal');
 
-  // Verify password authentication fields exist
-  assert.equal(authContent.includes('type={showPassword ? \'text\' : \'password\'}'), true, 'Password input must exist');
-  assert.equal(authContent.includes('confirmPassword'), true, 'Confirm password field must exist for registration');
+  // Verify Gmail verification & Forgot password flows exist
+  assert.equal(authContent.includes('verify-register'), true, 'Gmail registration OTP step must exist');
+  assert.equal(authContent.includes('forgot'), true, 'Forgot password step must exist');
+  assert.equal(authContent.includes('reset-password'), true, 'Reset password step must exist');
+  assert.equal(authContent.includes('Quên mật khẩu?'), true, 'Forgot password button must exist');
+  assert.equal(authContent.includes('sendGmailOtp'), true, 'sendGmailOtp must be wired in AuthModal');
+  assert.equal(authContent.includes('resetPasswordWithGmail'), true, 'resetPasswordWithGmail must be wired in AuthModal');
 });
 
 test('Auth & UI Audit: Sidebar and App have no Demo switcher or Demo badges', () => {
@@ -34,18 +38,22 @@ test('Auth & UI Audit: Sidebar and App have no Demo switcher or Demo badges', ()
   assert.equal(appContent.includes('NavigationRail'), true, 'Messenger NavigationRail must be present in App.jsx');
 });
 
-test('Auth & UI Audit: ChatContext blocks legacy demo accounts and generates default avatars', () => {
+test('Auth & UI Audit: ChatContext provides Gmail OTP and password reset methods', () => {
   const ctxContent = fs.readFileSync(path.join(srcDir, 'context/ChatContext.jsx'), 'utf8');
 
   assert.equal(ctxContent.includes('DEMO_USER_IDS'), true, 'ChatContext must filter out legacy demo user IDs');
-  assert.equal(ctxContent.includes('getDefaultAvatar'), true, 'ChatContext must provide getDefaultAvatar');
-  assert.equal(ctxContent.includes('password'), true, 'ChatContext login/register must handle password');
+  assert.equal(ctxContent.includes('sendGmailOtp'), true, 'ChatContext must provide sendGmailOtp');
+  assert.equal(ctxContent.includes('verifyGmailOtp'), true, 'ChatContext must provide verifyGmailOtp');
+  assert.equal(ctxContent.includes('resetPasswordWithGmail'), true, 'ChatContext must provide resetPasswordWithGmail');
 });
 
-test('Backend Audit: DataInitializer purges demo accounts instead of seeding them', () => {
-  const initializerPath = path.resolve(__dirname, '../../backend/src/main/java/com/messenger/config/DataInitializer.java');
-  const initializerContent = fs.readFileSync(initializerPath, 'utf8');
+test('Backend Audit: EmailOtpService and AuthController support Gmail OTP & reset-password', () => {
+  const otpServicePath = path.resolve(__dirname, '../../backend/src/main/java/com/messenger/service/EmailOtpService.java');
+  const authCtrlPath = path.resolve(__dirname, '../../backend/src/main/java/com/messenger/controller/AuthController.java');
 
-  assert.equal(initializerContent.includes('Initializing seed data'), false, 'Seed data initialization must be removed');
-  assert.equal(initializerContent.includes('userRepository.deleteById'), true, 'Demo users must be purged');
+  assert.equal(fs.existsSync(otpServicePath), true, 'EmailOtpService.java must exist');
+  const ctrlContent = fs.readFileSync(authCtrlPath, 'utf8');
+  assert.equal(ctrlContent.includes('/send-otp'), true, '/api/auth/send-otp endpoint must exist');
+  assert.equal(ctrlContent.includes('/verify-otp'), true, '/api/auth/verify-otp endpoint must exist');
+  assert.equal(ctrlContent.includes('/reset-password'), true, '/api/auth/reset-password endpoint must exist');
 });

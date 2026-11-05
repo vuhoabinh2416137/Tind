@@ -63,29 +63,67 @@ class MessengerApplicationTests {
     }
 
     @Test
-    void testRegisterAndLoginWithPassword() {
-        String username = "testuser_" + System.currentTimeMillis();
+    void testGmailOtpVerificationAndPasswordReset() {
+        long suffix = System.currentTimeMillis();
+        String username = "gmailuser_" + suffix;
+        String email = username + "@gmail.com";
+
+        // 1. Request OTP for registration
+        ResponseEntity<Map> sendOtpRes = restTemplate.postForEntity(
+            getBaseUrl() + "/api/auth/send-otp",
+            Map.of("email", email, "purpose", "REGISTER"),
+            Map.class
+        );
+        assertEquals(HttpStatus.OK, sendOtpRes.getStatusCode());
+        assertNotNull(sendOtpRes.getBody());
+        String registerOtp = (String) sendOtpRes.getBody().get("fallbackOtp");
+        assertNotNull(registerOtp);
+        assertEquals(6, registerOtp.length());
+
+        // 2. Register with Gmail & OTP
         RegisterRequest req = new RegisterRequest();
-        req.setName("Tester Messenger");
+        req.setName("Gmail Verified User");
         req.setUsername(username);
-        req.setPassword("secret123");
+        req.setEmail(email);
+        req.setPassword("initialPass123");
+        req.setOtp(registerOtp);
 
         ResponseEntity<User> regRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/register", req, User.class);
         assertEquals(HttpStatus.OK, regRes.getStatusCode());
         assertNotNull(regRes.getBody());
-        assertEquals(username, regRes.getBody().getUsername());
-        assertNotNull(regRes.getBody().getAvatar());
+        assertEquals(email, regRes.getBody().getEmail());
+        assertTrue(regRes.getBody().isEmailVerified());
 
-        // Valid login
-        AuthRequest loginReq = new AuthRequest(username, "secret123");
-        ResponseEntity<User> loginRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", loginReq, User.class);
+        // 3. Login using Gmail address
+        AuthRequest loginWithGmail = new AuthRequest(email, "initialPass123");
+        ResponseEntity<User> loginRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", loginWithGmail, User.class);
         assertEquals(HttpStatus.OK, loginRes.getStatusCode());
-        assertNotNull(loginRes.getBody());
-        assertEquals(username, loginRes.getBody().getUsername());
 
-        // Invalid password login
-        AuthRequest wrongPassReq = new AuthRequest(username, "wrongpass");
-        ResponseEntity<Map> wrongRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", wrongPassReq, Map.class);
-        assertEquals(HttpStatus.NOT_FOUND, wrongRes.getStatusCode());
+        // 4. Forgot password -> request RESET_PASSWORD OTP
+        ResponseEntity<Map> resetOtpRes = restTemplate.postForEntity(
+            getBaseUrl() + "/api/auth/send-otp",
+            Map.of("email", email, "purpose", "RESET_PASSWORD"),
+            Map.class
+        );
+        assertEquals(HttpStatus.OK, resetOtpRes.getStatusCode());
+        String resetOtp = (String) resetOtpRes.getBody().get("fallbackOtp");
+        assertNotNull(resetOtp);
+
+        // 5. Reset password with OTP
+        ResponseEntity<Map> resetRes = restTemplate.postForEntity(
+            getBaseUrl() + "/api/auth/reset-password",
+            Map.of("email", email, "otp", resetOtp, "newPassword", "newPass456"),
+            Map.class
+        );
+        assertEquals(HttpStatus.OK, resetRes.getStatusCode());
+
+        // 6. Verify old password fails and new password succeeds
+        AuthRequest oldPassReq = new AuthRequest(email, "initialPass123");
+        ResponseEntity<Map> oldRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", oldPassReq, Map.class);
+        assertEquals(HttpStatus.NOT_FOUND, oldRes.getStatusCode());
+
+        AuthRequest newPassReq = new AuthRequest(email, "newPass456");
+        ResponseEntity<User> newLoginRes = restTemplate.postForEntity(getBaseUrl() + "/api/auth/login", newPassReq, User.class);
+        assertEquals(HttpStatus.OK, newLoginRes.getStatusCode());
     }
 }

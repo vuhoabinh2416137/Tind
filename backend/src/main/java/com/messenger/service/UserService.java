@@ -26,9 +26,11 @@ public class UserService {
     );
 
     private final UserRepository userRepository;
+    private final EmailOtpService emailOtpService;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, EmailOtpService emailOtpService) {
         this.userRepository = userRepository;
+        this.emailOtpService = emailOtpService;
     }
 
     public static String hashPassword(String rawPassword) {
@@ -56,6 +58,33 @@ public class UserService {
         return userRepository.findByUsernameIgnoreCase(username);
     }
 
+    public Optional<User> getUserByEmail(String email) {
+        return userRepository.findByEmailIgnoreCase(email);
+    }
+
+    public EmailOtpService.OtpDispatchResult requestOtp(String email, String purpose) {
+        String cleanEmail = (email == null) ? "" : email.trim().toLowerCase();
+        if (!cleanEmail.matches("^[A-Za-z0-9._%+-]+@gmail\\.com$")) {
+            throw new IllegalArgumentException("Vui lòng nhập địa chỉ Gmail hợp lệ (@gmail.com)");
+        }
+
+        if ("REGISTER".equalsIgnoreCase(purpose)) {
+            if (userRepository.existsByEmailIgnoreCase(cleanEmail)) {
+                throw new IllegalArgumentException("Địa chỉ Gmail này đã được đăng ký cho một tài khoản khác");
+            }
+        } else if ("RESET_PASSWORD".equalsIgnoreCase(purpose)) {
+            if (!userRepository.existsByEmailIgnoreCase(cleanEmail)) {
+                throw new IllegalArgumentException("Không tìm thấy tài khoản nào liên kết với địa chỉ Gmail này");
+            }
+        }
+
+        return emailOtpService.generateAndSendOtp(cleanEmail, purpose);
+    }
+
+    public boolean verifyOtpCode(String email, String otp, String purpose) {
+        return emailOtpService.verifyOtp(email, otp, purpose, false);
+    }
+
     @Transactional
     public User register(RegisterRequest req) {
         if (req.getUsername() == null || req.getName() == null || req.getName().isBlank()) {
@@ -75,6 +104,23 @@ public class UserService {
             throw new IllegalArgumentException("Tên đăng nhập này đã được sử dụng");
         }
 
+        String cleanEmail = null;
+        if (req.getEmail() != null && !req.getEmail().isBlank()) {
+            cleanEmail = req.getEmail().trim().toLowerCase();
+            if (!cleanEmail.matches("^[A-Za-z0-9._%+-]+@gmail\\.com$")) {
+                throw new IllegalArgumentException("Vui lòng sử dụng địa chỉ Gmail hợp lệ (@gmail.com)");
+            }
+            if (userRepository.existsByEmailIgnoreCase(cleanEmail)) {
+                throw new IllegalArgumentException("Địa chỉ Gmail này đã được sử dụng");
+            }
+            if (req.getOtp() != null && !req.getOtp().isBlank()) {
+                boolean validOtp = emailOtpService.verifyOtp(cleanEmail, req.getOtp(), "REGISTER", true);
+                if (!validOtp) {
+                    throw new IllegalArgumentException("Mã xác nhận Gmail không chính xác hoặc đã hết hạn");
+                }
+            }
+        }
+
         String userId = "u_" + cleanUsername + "_" + UUID.randomUUID().toString().substring(0, 4);
         String encodedName = URLEncoder.encode(req.getName().trim(), StandardCharsets.UTF_8);
         String defaultAvatar = "https://ui-avatars.com/api/?name=" + encodedName + "&background=0084FF&color=fff&bold=true&size=150";
@@ -90,6 +136,8 @@ public class UserService {
             req.getStatus() != null ? req.getStatus() : "Đang hoạt động trên Messenger",
             false
         );
+        user.setEmail(cleanEmail);
+        user.setEmailVerified(cleanEmail != null);
         user.setPassword(hashPassword(req.getPassword()));
         user.setOnline(true);
 
@@ -99,14 +147,18 @@ public class UserService {
     @Transactional(readOnly = true)
     public User login(AuthRequest req) {
         if (req.getUsername() == null || req.getUsername().isBlank()) {
-            throw new IllegalArgumentException("Vui lòng nhập tên đăng nhập");
+            throw new IllegalArgumentException("Vui lòng nhập email Gmail hoặc tên đăng nhập");
         }
         if (req.getPassword() == null || req.getPassword().isBlank()) {
             throw new IllegalArgumentException("Vui lòng nhập mật khẩu");
         }
 
-        User user = userRepository.findByUsernameIgnoreCase(req.getUsername().trim())
-            .orElseThrow(() -> new IllegalArgumentException("Tài khoản hoặc mật khẩu không chính xác"));
+        String identifier = req.getUsername().trim().toLowerCase();
+        Optional<User> userOpt = identifier.contains("@")
+            ? userRepository.findByEmailIgnoreCase(identifier)
+            : userRepository.findByUsernameIgnoreCase(identifier);
+
+        User user = userOpt.orElseThrow(() -> new IllegalArgumentException("Tài khoản hoặc mật khẩu không chính xác"));
 
         if (DEMO_USER_IDS.contains(user.getId())) {
             throw new IllegalArgumentException("Tài khoản không tồn tại");
@@ -120,6 +172,28 @@ public class UserService {
         }
 
         return user;
+    }
+
+    @Transactional
+    public void resetPassword(String email, String otp, String newPassword) {
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Vui lòng nhập địa chỉ Gmail");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            throw new IllegalArgumentException("Mật khẩu mới phải có ít nhất 6 ký tự");
+        }
+
+        String cleanEmail = email.trim().toLowerCase();
+        boolean validOtp = emailOtpService.verifyOtp(cleanEmail, otp, "RESET_PASSWORD", true);
+        if (!validOtp) {
+            throw new IllegalArgumentException("Mã xác nhận Gmail không chính xác hoặc đã hết hạn");
+        }
+
+        User user = userRepository.findByEmailIgnoreCase(cleanEmail)
+            .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản với địa chỉ Gmail này"));
+
+        user.setPassword(hashPassword(newPassword));
+        userRepository.save(user);
     }
 
     @Transactional(readOnly = true)

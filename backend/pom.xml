@@ -44,6 +44,12 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
+        <!-- JavaMail (Gmail SMTP Verification & Password Reset) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
         <!-- H2 Database (Local Dev) -->
         <dependency>
             <groupId>com.h2database</groupId>
