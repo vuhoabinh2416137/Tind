@@ -21,7 +21,7 @@ export default function Sidebar() {
   } = useChat();
 
   const filteredConversations = conversations.filter(c =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (c.lastMessage?.text && c.lastMessage.text.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
@@ -152,8 +152,8 @@ export default function Sidebar() {
                 {/* Avatar with online status */}
                 <div className="relative flex-shrink-0 mr-3">
                   <img
-                    src={conv.avatar}
-                    alt={conv.name}
+                    src={conv.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}
+                    alt={conv.name || ''}
                     className="w-12 h-12 rounded-full object-cover"
                   />
                   {conv.online && (
@@ -171,7 +171,7 @@ export default function Sidebar() {
                           : 'font-medium text-gray-800 dark:text-gray-200'
                       }`}
                     >
-                      {conv.name}
+                      {conv.name || 'Người dùng'}
                     </h2>
                     {lastMsg && (
                       <span className="text-[11px] text-gray-400 ml-2 flex-shrink-0">

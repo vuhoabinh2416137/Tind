@@ -28,7 +28,7 @@ export default function ActiveContactsTray() {
             )}
           </div>
           <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 mt-1 max-w-[54px] truncate text-center">
-            {user.name.split(' ').slice(-1)[0]}
+            {(user.name || '').split(' ').slice(-1)[0] || 'User'}
           </span>
         </button>
       ))}
