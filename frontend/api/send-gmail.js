@@ -24,8 +24,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Mã OTP không hợp lệ' });
   }
 
-  const gmailUser = (process.env.GMAIL_USER || process.env.GMAIL_USERNAME || '').trim();
-  const gmailPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASSWORD || '').replace(/\s+/g, '');
+  const gmailUser = (process.env.GMAIL_USER || process.env.GMAIL_USERNAME || 'baredy26@gmail.com').trim();
+  const gmailPass = (process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASSWORD || 'awya ocjd yhza vfzm').replace(/\s+/g, '');
 
   if (!gmailUser || !gmailPass) {
     return res.status(503).json({
