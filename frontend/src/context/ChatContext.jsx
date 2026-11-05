@@ -402,39 +402,69 @@ export const ChatProvider = ({ children }) => {
     } catch {}
   };
 
-  // Send 6-digit OTP to Gmail (for REGISTER or RESET_PASSWORD)
+  // Send 6-digit OTP to real Gmail inbox via Vercel Serverless SMTP (/api/send-gmail) or Spring Boot SMTP
   const sendGmailOtp = async (email, purpose = 'REGISTER') => {
     const cleanEmail = (email || '').trim().toLowerCase();
     if (!GMAIL_REGEX.test(cleanEmail)) {
       throw new Error('Vui lòng nhập địa chỉ Gmail hợp lệ (ví dụ: tenban@gmail.com)');
     }
 
+    // Check against existing users list
+    const existingUserWithEmail = (Array.isArray(allUsers) ? allUsers : []).find(
+      u => (u.email && u.email.toLowerCase() === cleanEmail) || (u.username && `${u.username.toLowerCase()}@gmail.com` === cleanEmail)
+    );
     const emailMap = getLocalEmailMap();
-    if (purpose === 'REGISTER' && emailMap[cleanEmail]) {
+
+    if (purpose === 'REGISTER' && (emailMap[cleanEmail] || (existingUserWithEmail && existingUserWithEmail.email))) {
       throw new Error('Địa chỉ Gmail này đã được đăng ký cho một tài khoản khác');
     }
 
-    // Try backend /api/auth/send-otp first
+    if (purpose === 'RESET_PASSWORD' && !emailMap[cleanEmail] && !existingUserWithEmail) {
+      // Also check backend if account exists
+      try {
+        const checkRes = await fetch(`${API_URL}/api/users/search?q=${encodeURIComponent(cleanEmail.split('@')[0])}&userId=none`);
+        const foundUsers = await checkRes.json().catch(() => []);
+        const matched = Array.isArray(foundUsers) && foundUsers.some(
+          u => (u.email && u.email.toLowerCase() === cleanEmail) || u.username === cleanEmail.split('@')[0]
+        );
+        if (!matched) {
+          throw new Error('Không tìm thấy tài khoản nào liên kết với địa chỉ Gmail này');
+        }
+      } catch (e) {
+        if (e.message && e.message.includes('Không tìm thấy')) throw e;
+      }
+    }
+
+    // Generate 6-digit OTP & store with 10-minute expiration
+    let otpCode = String(Math.floor(100000 + Math.random() * 900000));
+
+    // 1. Try backend /api/auth/send-otp (if Spring Boot has SMTP configured, it will send directly; otherwise returns generated OTP)
     try {
-      const res = await fetch(`${API_URL}/api/auth/send-otp`, {
+      const backendRes = await fetch(`${API_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail, purpose })
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.fallbackOtp) {
+      if (backendRes.ok) {
+        const backendData = await backendRes.json();
+        if (backendData.fallbackOtp) {
+          otpCode = String(backendData.fallbackOtp);
+        }
+        if (backendData.deliveredViaSmtp) {
           const otpMap = getLocalOtpMap();
           otpMap[`${cleanEmail}:${purpose}`] = {
-            otp: data.fallbackOtp,
+            otp: otpCode,
             expiresAt: Date.now() + 10 * 60 * 1000
           };
           saveLocalOtpMap(otpMap);
+          return {
+            email: cleanEmail,
+            deliveredViaSmtp: true,
+            message: `Mã xác nhận 6 số đã được gửi tới hộp thư Gmail ${cleanEmail}`
+          };
         }
-        return data;
-      } else if (res.status === 400) {
-        const errData = await res.json().catch(() => ({}));
+      } else if (backendRes.status === 400) {
+        const errData = await backendRes.json().catch(() => ({}));
         if (errData.error) throw new Error(errData.error);
       }
     } catch (err) {
@@ -443,24 +473,36 @@ export const ChatProvider = ({ children }) => {
       }
     }
 
-    // Fallback OTP generation if backend SMTP is not configured
-    if (purpose === 'RESET_PASSWORD' && !emailMap[cleanEmail]) {
-      throw new Error('Không tìm thấy tài khoản nào liên kết với địa chỉ Gmail này');
+    // 2. Send real email via Vercel Serverless Function (/api/send-gmail using Nodemailer + smtp.gmail.com:465)
+    const vercelRes = await fetch('/api/send-gmail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: cleanEmail,
+        otp: otpCode,
+        purpose
+      })
+    });
+
+    const vercelData = await vercelRes.json().catch(() => ({}));
+    if (!vercelRes.ok) {
+      throw new Error(
+        vercelData.error ||
+        'Không thể gửi email tới hộp thư Gmail. Vui lòng kiểm tra cấu hình GMAIL_USER và GMAIL_APP_PASSWORD trên Vercel.'
+      );
     }
 
-    const generatedOtp = String(Math.floor(100000 + Math.random() * 900000));
     const otpMap = getLocalOtpMap();
     otpMap[`${cleanEmail}:${purpose}`] = {
-      otp: generatedOtp,
+      otp: otpCode,
       expiresAt: Date.now() + 10 * 60 * 1000
     };
     saveLocalOtpMap(otpMap);
 
     return {
       email: cleanEmail,
-      deliveredViaSmtp: false,
-      fallbackOtp: generatedOtp,
-      message: `Mã xác nhận 6 số đã được gửi tới ${cleanEmail}`
+      deliveredViaSmtp: true,
+      message: `Mã xác nhận 6 số đã được gửi tới hộp thư Gmail ${cleanEmail}`
     };
   };
 

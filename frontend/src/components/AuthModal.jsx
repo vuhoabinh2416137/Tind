@@ -48,7 +48,6 @@ export default function AuthModal() {
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [gmailToast, setGmailToast] = useState(null);
 
   if (currentUser) return null;
 
@@ -57,17 +56,6 @@ export default function AuthModal() {
     setError('');
     setSuccessMsg('');
     setOtp('');
-  };
-
-  const triggerGmailToast = (targetEmail, code, purpose) => {
-    if (!code) return;
-    setGmailToast({
-      email: targetEmail,
-      code,
-      subject: purpose === 'RESET_PASSWORD'
-        ? `${code} là mã khôi phục mật khẩu Messenger của bạn`
-        : `${code} là mã xác nhận tài khoản Messenger của bạn`
-    });
   };
 
   // Step 1 Register -> Send OTP to Gmail
@@ -99,12 +87,9 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      const res = await sendGmailOtp(email.trim(), 'REGISTER');
-      if (res.fallbackOtp) {
-        triggerGmailToast(email.trim().toLowerCase(), res.fallbackOtp, 'REGISTER');
-      }
+      await sendGmailOtp(email.trim(), 'REGISTER');
       setMode('verify-register');
-      setSuccessMsg(`Đã gửi mã xác nhận gồm 6 chữ số tới Gmail ${email.trim().toLowerCase()}`);
+      setSuccessMsg(`Đã gửi email chứa mã xác nhận 6 chữ số tới hộp thư Gmail ${email.trim().toLowerCase()}. Vui lòng kiểm tra hộp thư đến (hoặc mục Thư rác/Spam).`);
     } catch (err) {
       setError(err.message || 'Không thể gửi mã xác nhận Gmail');
     } finally {
@@ -129,7 +114,6 @@ export default function AuthModal() {
         password,
         otp: otp.trim()
       });
-      setGmailToast(null);
     } catch (err) {
       setError(err.message || 'Xác nhận Gmail thất bại');
     } finally {
@@ -150,12 +134,9 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      const res = await sendGmailOtp(email.trim(), 'RESET_PASSWORD');
-      if (res.fallbackOtp) {
-        triggerGmailToast(email.trim().toLowerCase(), res.fallbackOtp, 'RESET_PASSWORD');
-      }
+      await sendGmailOtp(email.trim(), 'RESET_PASSWORD');
       setMode('reset-password');
-      setSuccessMsg(`Mã khôi phục mật khẩu 6 số đã được gửi tới ${email.trim().toLowerCase()}`);
+      setSuccessMsg(`Email chứa mã khôi phục mật khẩu 6 số đã được gửi tới hộp thư ${email.trim().toLowerCase()}. Vui lòng mở ứng dụng Gmail để lấy mã.`);
     } catch (err) {
       setError(err.message || 'Không tìm thấy tài khoản với Gmail này');
     } finally {
@@ -188,7 +169,6 @@ export default function AuthModal() {
         otp: otp.trim(),
         newPassword: password
       });
-      setGmailToast(null);
       setUsername(email.trim().toLowerCase());
       setPassword('');
       setConfirmPassword('');
@@ -256,49 +236,6 @@ export default function AuthModal() {
 
   return (
     <div className="fixed inset-0 bg-white dark:bg-[#18191a] z-50 flex flex-col overflow-y-auto select-none">
-      {/* Incoming Gmail OTP Notification Toast */}
-      {gmailToast && (
-        <div className="fixed top-5 right-5 z-50 w-full max-w-sm bg-white dark:bg-[#242526] rounded-2xl shadow-2xl border border-blue-200 dark:border-blue-900/60 p-4 animate-pop-in">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-9 h-9 rounded-full bg-red-50 dark:bg-red-950/50 flex items-center justify-center text-[#EA4335] flex-shrink-0">
-                <Mail className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-[#050505] dark:text-white">
-                  Gmail · Hộp thư đến ({gmailToast.email})
-                </p>
-                <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">
-                  Từ: Messenger Security &lt;no-reply@messenger.com&gt;
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setGmailToast(null)}
-              className="text-xs text-[#65676b] hover:text-[#050505] dark:hover:text-white"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="mt-3 p-3 bg-[#f0f2f5] dark:bg-[#303030] rounded-xl flex items-center justify-between">
-            <div>
-              <p className="text-[11px] text-[#65676b] dark:text-[#b0b3b8]">Mã xác nhận Gmail của bạn:</p>
-              <p className="text-xl font-extrabold tracking-[0.25em] text-[#0084FF] mt-0.5">
-                {gmailToast.code}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setOtp(gmailToast.code)}
-              className="px-3 py-1.5 bg-[#0084FF] hover:bg-[#0073e6] text-white text-xs font-semibold rounded-lg transition-colors"
-            >
-              Điền mã
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Messenger.com Official Header */}
       <header className="w-full max-w-7xl mx-auto px-6 md:px-12 h-24 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center space-x-3 cursor-pointer" onClick={() => switchMode('login')}>
